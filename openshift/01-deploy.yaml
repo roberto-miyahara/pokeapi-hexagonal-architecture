@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: CI_PROJECT_NAME
+    app.gitlab.com/env: CI_ENVIRONMENT_SLUG
+    app.gitlab.com/app: CI_PROJECT_PATH_SLUG
+  annotations:
+    app.gitlab.com/app: CI_PROJECT_PATH_SLUG
+    app.gitlab.com/env: CI_ENVIRONMENT_SLUG
+  name: CI_PROJECT_NAME
+  namespace: KUBE_NAMESPACE
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      run: CI_PROJECT_NAME
+  template:
+    metadata:
+      labels:
+        run: CI_PROJECT_NAME
+        app.gitlab.com/env: CI_ENVIRONMENT_SLUG
+        app.gitlab.com/app: CI_PROJECT_PATH_SLUG
+      annotations:
+        app.gitlab.com/env: CI_ENVIRONMENT_SLUG
+        app.gitlab.com/app: CI_PROJECT_PATH_SLUG
+    spec:
+      containers:
+      - image: DOCKER_ENV_CI_REGISTRY_IMAGE:CI_BUILD_TAG
+        imagePullPolicy: Always
+        name: CI_PROJECT_NAME
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          requests:
+            cpu: REQUEST_CPU #100m
+            memory: REQUEST_MEMORY #150Mi
+          limits:
+            cpu: LIMITS_CPU #150m
+            memory: LIMITS_MEMORY #700Mi
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: READINESS_INITIAL_DELAY #120
+          periodSeconds: 60
+          failureThreshold: 8
+        livenessProbe:
+          httpGet:
+            # host: my-host
+            # scheme: HTTPS
+            path: /healthz
+            port: 8080
+            httpHeaders:
+            - name: X-Custom-Header
+              value: Awesome
+          initialDelaySeconds: LIVENESS_INITIAL_DELAY #360
+          timeoutSeconds: 120
+        name: liveness
+        volumeMounts:
+          # name must match the volume name below
+          - name: app-config
+            mountPath: /opt/app/config/
+            readOnly: true
+        env:
+        - name: TZ
+          value: America/Sao_paulo
+      volumes:
+      - name: app-config
+        secret:
+          secretName: CI_PROJECT_NAME
+        resources: {}
+      restartPolicy: Always
+

@@ -1,0 +1,33 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>br.com.cea.rpo0.bff.core</groupId>
+		<artifactId>rpo0-bff-core</artifactId>
+		<version>1.0.0-RELEASE</version>
+	</parent>
+	<groupId>br.com.cea.rpo0.bff.core.application</groupId>
+	<artifactId>rpo0-bff-application</artifactId>
+	<name>Project Core Application</name>
+	<description>Core Application Process</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.core.commons</groupId>
+			<artifactId>rpo0-bff-commons</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.core.ports.in</groupId>
+			<artifactId>rpo0-bff-ports-in</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.core.ports.out</groupId>
+			<artifactId>rpo0-bff-ports-out</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+		</dependency>
+	</dependencies>
+</project>

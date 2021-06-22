@@ -1,0 +1,31 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: CI_PROJECT_NAME
+  namespace: KUBE_NAMESPACE
+  labels:
+    app: CI_PROJECT_NAME
+    app.gitlab.com/env: CI_ENVIRONMENT_SLUG
+    app.gitlab.com/app: CI_PROJECT_PATH_SLUG
+  annotations:
+    openshift.io/host.generated: 'true'
+    app.gitlab.com/env: CI_ENVIRONMENT_SLUG
+    app.gitlab.com/app: CI_PROJECT_PATH_SLUG    
+spec:
+  host: CI_PROJECT_NAME-KUBE_NAMESPACE.apps.CLUSTER.cea.com.br
+  to:
+    kind: Service
+    name: CI_PROJECT_NAME
+    weight: 100
+  port:
+    targetPort: 8080
+  wildcardPolicy: None
+status:
+  ingress:
+    - host: CI_PROJECT_NAME-KUBE_NAMESPACE.apps.CLUSTER.cea.com.br
+      routerName: default
+      conditions:
+        - type: Admitted
+          status: 'True'
+      wildcardPolicy: None
+      routerCanonicalHostname: apps.CLUSTER.cea.com.br

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<artifactId>rpo0-bff</artifactId>
+		<groupId>br.com.cea.rpo0.bff</groupId>
+		<version>1.0.0-RELEASE</version>
+	</parent>
+	<artifactId>rpo0-bff-build</artifactId>
+	<packaging>jar</packaging>
+	<name>rpo0-bff-build</name>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>1.8</java.version>
+	</properties>
+	
+	<!-- Repositórios mavem para armazenamento dos artefatos compilados pela 
+		esteira, jars, wars, ears -->
+	<distributionManagement>
+		<repository>
+			<!-- Repositório de produção -->
+			<id>cea</id>
+			<name>CEA Releases</name>
+			<url>${env.MAVEN_REPO_URL}/repository/cea-release/</url>
+		</repository>
+		<snapshotRepository>
+			<!-- Repositório de homologação quando o version tiver o sufixo -SNAPSHOT -->
+			<id>cea</id>
+			<name>CEA Snapshots</name>
+			<url>${env.MAVEN_REPO_URL}/repository/cea-snapshot/</url>
+		</snapshotRepository>
+	</distributionManagement>	
+
+	<dependencies>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.core.application</groupId>
+			<artifactId>rpo0-bff-application</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.core.ports.in</groupId>
+			<artifactId>rpo0-bff-ports-in</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.core.ports.out</groupId>
+			<artifactId>rpo0-bff-ports-out</artifactId>
+		</dependency>
+		<!-- adapters -->
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.adapters.in.example</groupId>
+			<artifactId>example-port-in</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>br.com.cea.rpo0.bff.adapters.out.example</groupId>
+			<artifactId>example-port-out</artifactId>
+		</dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+	<build>
+		<finalName>rpo0-bff</finalName>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<mainClass>br.com.cea.rpo0.bff.StartApplication</mainClass>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<id>build-info</id>
+						<goals>
+							<goal>build-info</goal>
+						</goals>
+					</execution>
+				</executions>				
+			</plugin>
+			<plugin> <!-- Plugin do SonarQube -->
+				<groupId>org.sonarsource.scanner.maven</groupId>
+				<artifactId>sonar-maven-plugin</artifactId>
+				<version>3.6.0.1398</version>
+			</plugin>
+			<plugin> <!-- Plugin de cobertura de testes -->
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.4</version>
+			</plugin>			
+		</plugins>
+	</build>
+</project>

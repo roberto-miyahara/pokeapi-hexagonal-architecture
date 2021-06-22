@@ -1,0 +1,194 @@
+###############################################
+##### Pipeline Gitlab-CI - v1.0           #####
+##### Mandic Cloud Solutions - 15/01/2019 #####
+##### Setor: ALOCAÇÂO                     #####
+###############################################
+
+image: "docker:19.03.6"
+
+services:
+- name: docker:19.03.6-dind
+  alias: dind
+  command: ['--insecure-registry=registry.cea.com.br:5005']
+
+stages: # É a ordem dos jobs, incluindo os imports.
+   - test # realiza os testes unitários e de qualidade de código
+   - build # realiza o build e package do projeto e armazena os artefatos gerados
+   - build_container # Realiza o build do container.
+   - test_container # Passos de teste do container
+   - deploy # Realiza o deploy nos ambientes dese, homo, prod etc.
+
+# stages modularizados em outros projetos
+include:
+   - project: 'arquitetura/modulos-gitlabci/modulos-padrao'
+     file: '/ci-sonar-qube/mvn-sonar-qube-remote-settings.yml' # SonarQube com settings remoto
+     ref: master
+     
+   - project: 'arquitetura/modulos-gitlabci/modulos-padrao'
+     file: '/ci-test-container/image-scanning-clair-scanner.yml' # Teste de segurança do container
+     ref: master
+     
+   - project: 'arquitetura/modulos-gitlabci/modulos-padrao'
+     file: '/extensions/base-extensions.yml' # Download settings.xml para uso no maven
+     ref: master
+
+variables:
+  GIT_SSL_NO_VERIFY: "1"
+  DOCKER_HOST: tcp://dind:2375
+  DOCKER_TLS_CERTDIR: ""
+  IMAGE_DOCKER: "maven:3.6.3-jdk-11"
+
+# Configuração de cache para não baixar as dependencias em todas as execuções
+# O caminho deve ser informado na váriavel MAVEN_CLI_OPTS com -Dmaven.repo.local=.m2/repository
+cache:
+  paths:
+    - .m2/repository/
+
+mvn-test:
+  extends: .clone-mvn-settings # Via include
+  image: ${IMAGE_DOCKER}
+  stage: test
+  script:
+    - env # Exibe as variáveis da esteira no console para eventuais debugs
+    - mvn ${MAVEN_CLI_OPTS} clean test
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+
+mvn-package:
+  extends: .clone-mvn-settings # Via include
+  image: ${IMAGE_DOCKER}
+  stage: build
+  script:
+    # Utiliza -Dmaven.test.skip=true para não rodar novamente os 
+    # testes, já validados nas fases anteriores.
+    - mvn ${MAVEN_CLI_OPTS} package -Dmaven.test.skip=true
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+  only:
+    - develop
+  artifacts:
+    name: "${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}"
+    when: always
+    expire_in: 2 hrs
+    paths: # Salva todos os tipos de pacote java
+      - ./target/*.ear
+      - ./target/*.war 
+      - ./rpo0-bff-build/target/*.jar
+
+mvn-deploy-nexus:
+  extends: .clone-mvn-settings # Via include
+  image: ${IMAGE_DOCKER}
+  stage: build
+  script:
+    # Utiliza -Dmaven.test.skip=true para não rodar novamente os 
+    # testes, já validados nas fases anteriores.
+    - mvn ${MAVEN_CLI_OPTS} deploy -Dmaven.test.skip=true
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+  only:
+    - /^[0-9]+.[0-9]+.[0-9]+$/ # Match com tags no formato de tres conjuntos numericos ex 1.2.0
+  allow_failure: true
+  artifacts:
+    name: "${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}"
+    when: always
+    expire_in: 2 hrs
+    paths: # Salva todos os tipos de pacote java
+     - ./target/*.ear
+     - ./target/*.war 
+     - ./rpo0-bff-build/target/*.jar
+
+docker-build:
+  stage: build_container
+  before_script:
+    - ls Dockerfile | xargs sed -i "s/CI_PROJECT_NAME/$CI_PROJECT_NAME/g"
+  script:
+    - env
+    - echo ${CI_COMMIT_BRANCH}
+    - docker login -u gitlab-ci-token -p ${CI_JOB_TOKEN} ${CI_REGISTRY}
+    - docker build -t ${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_BRANCH} .
+    - docker push  ${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_COMMIT_BRANCH}
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+  only:
+    - develop
+
+docker-build-tags:
+  stage: build_container
+  before_script:
+    - ls Dockerfile | xargs sed -i "s/CI_PROJECT_NAME/$CI_PROJECT_NAME/g"
+  script:
+    - env
+    - echo ${CI_BUILD_TAG}
+    - docker login -u gitlab-ci-token -p ${CI_JOB_TOKEN} ${CI_REGISTRY}
+    - docker build -t ${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_BUILD_TAG} .
+    - docker push ${CI_REGISTRY}/${CI_PROJECT_PATH}:${CI_BUILD_TAG}
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+  only:
+    - /^[0-9]+.[0-9]+.[0-9]+$/ # Match com tags no formato de tres conjuntos numericos ex 1.2.0
+
+homolog:
+  stage: deploy
+  image: "openshift/origin-cli"
+  environment:
+    name: homolog
+    url: http://${CI_PROJECT_NAME}-${KUBE_NAMESPACE}.apps.${CLUSTER}.cea.com.br
+    kubernetes:
+      namespace: ${KUBE_NAMESPACE}
+  before_script:
+    - oc login --server=https://api.${CLUSTER}.cea.com.br:6443 --token=${OCP_TOKEN_HOM} --insecure-skip-tls-verify      
+  script:
+    - ./deploy.sh ${CI_COMMIT_BRANCH}
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+  only:
+    - develop
+
+# Estágio para deploy em produção
+production:
+  stage: deploy
+  image: "openshift/origin-cli"
+  environment:
+    name: production
+    url: http://${CI_PROJECT_NAME}-${KUBE_NAMESPACE}.apps.${CLUSTER}.cea.com.br
+    kubernetes:
+      namespace: ${KUBE_NAMESPACE}
+  when: manual
+  before_script:
+    - oc login --server=https://api.${CLUSTER}.cea.com.br:6443 --token=${OCP_TOKEN_PRD} --insecure-skip-tls-verify      
+  script:
+    - ./deploy.sh ${CI_BUILD_TAG}
+  except:
+    variables:
+      - $DEPLOY_ONLY # Não executa caso esta variável exista, pula o passo no fluxo de rollback ou redeploy
+  only:
+    - /^[0-9]+.[0-9]+.[0-9]+$/ # Match com tags no formato de tres conjuntos numericos ex 1.2.0
+
+# Estágio para deploy em produção
+# Executado apenas quando a variável $DEPLOY_ONLY == "true" for passada na esteira, manualmente ou via API
+# Utilizado para rollback ou restaurar o ambiente diretamente a partir de uma imagem em uma tag
+deploy_only:
+  stage: deploy
+  image: "openshift/origin-cli"
+  environment:
+    name: production
+    url: http://${CI_PROJECT_NAME}-${KUBE_NAMESPACE}.apps.${CLUSTER}.cea.com.br
+    kubernetes:
+      namespace: ${KUBE_NAMESPACE}
+  when: manual
+  before_script:
+    - oc login --server=https://api.${CLUSTER}.cea.com.br:6443 --token=${OCP_TOKEN_PRD} --insecure-skip-tls-verify      
+  script:
+    - ./deploy.sh ${CI_BUILD_TAG}
+  only: # As duas condições abaixo tem que ser verdadeiras para executar este passo
+    refs:
+      - /^[0-9]+.[0-9]+.[0-9]+$/ # Match com tags no formato de tres conjuntos numericos ex 1.2.0
+    variables:
+      - $DEPLOY_ONLY == "true"
+  
