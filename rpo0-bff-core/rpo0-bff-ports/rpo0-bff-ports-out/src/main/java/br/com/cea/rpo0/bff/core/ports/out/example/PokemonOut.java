@@ -4,6 +4,6 @@ import br.com.cea.rpo0.bff.core.commons.dto.PokedexDTO;
 
 public interface PokemonOut {
 
-    PokedexDTO getPokemon(Integer limit);
+    PokedexDTO getPokemon(Integer 1);
 
 }
